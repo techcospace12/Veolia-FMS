@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-slate-50 text-slate-800;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-veolia-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-veolia-700 disabled:bg-slate-300 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700;
+  }
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white;
+  }
+  .card-header {
+    @apply border-b border-slate-200 px-6 py-4;
+  }
+  .card-body {
+    @apply px-6 py-4;
+  }
+  .input {
+    @apply block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-veolia-500 focus:outline-none focus:ring-1 focus:ring-veolia-500;
+  }
+  .input-sm {
+    @apply block w-full rounded border border-slate-300 bg-white px-2 py-1 text-right text-sm placeholder:text-slate-400 focus:border-veolia-500 focus:outline-none focus:ring-1 focus:ring-veolia-500;
+  }
+  .select {
+    @apply block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-veolia-500 focus:outline-none focus:ring-1 focus:ring-veolia-500;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-slate-600;
+  }
+  .pill {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
+
+.table-tight th,
+.table-tight td {
+  @apply px-3 py-2 text-sm;
+}
+.table-tight th {
+  @apply bg-slate-100 text-left font-medium text-slate-700;
+}
+.table-tight tr {
+  @apply border-b border-slate-100;
+}
+.table-tight tr:last-child {
+  @apply border-b-0;
+}
+.numeric {
+  @apply text-right tabular-nums;
+}
+
+.row-subtotal {
+  @apply bg-slate-50 font-medium;
+}
+.row-grand {
+  @apply bg-veolia-50 font-semibold text-veolia-800;
+}
+.row-section {
+  @apply bg-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-600;
+}

@@ -1,0 +1,115 @@
+// Veolia India FMS - Prisma schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Plant {
+  id            Int        @id @default(autoincrement())
+  name          String
+  entity        String
+  business      String
+  volumeUnit    String     // e.g. "Tons", "KLD"
+  rateUnit      String     // e.g. "INR/Ton", "INR/KL"
+  // Revenue (mINR) = volumes * rate * revenueFactor
+  // Ankleshwar (Tons): factor = 1e-6 (mINR from raw INR)
+  // OCW (KLD per day):  factor = 31 / 1e6 (31 days * INR/KL/day -> mINR / month)
+  revenueFactor Float      @default(0.000001)
+  lineItems     LineItem[]
+  submissions   Submission[]
+}
+
+model LineItem {
+  id           Int            @id @default(autoincrement())
+  plantId      Int
+  plant        Plant          @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  order        Int
+  name         String
+  // Categories: VOLUME, RATE, REVENUE, OPEX, TOTAL_OPEX, PROFIT_BEFORE_MP,
+  //   STAFF, TOTAL_STAFF, PROFIT_BEFORE_SGA, SGA, CORPORATE, EBITDA,
+  //   DEPRECIATION, EBIT, CAPEX, WC
+  category     String
+  // For OPEX rows only: COS | SELLING | GA
+  function     String?
+  isCalculated Boolean        @default(false)
+  isRemovable  Boolean        @default(false)
+  values       MonthlyValue[]
+}
+
+model MonthlyValue {
+  id         Int      @id @default(autoincrement())
+  lineItemId Int
+  lineItem   LineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  year       Int
+  month      Int      // 1..12
+  version    String   // BUDGET, FLASH1, FORECAST2, FLASH2, ACTUAL
+  value      Float?
+  remarks    String?
+
+  @@unique([lineItemId, year, month, version])
+}
+
+model Submission {
+  id              Int       @id @default(autoincrement())
+  plantId         Int
+  plant           Plant     @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  year            Int
+  month           Int
+  version         String
+  status          String    // DRAFT, PENDING, APPROVED, REJECTED, LOCKED
+  submittedBy     String?
+  submittedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  @@unique([plantId, year, month, version])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userRole  String
+  userName  String?
+  plantName String?
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model ConsolidatedData {
+  id             Int   @id @default(autoincrement())
+  entity         String
+  year           Int
+  month          Int
+  // All values in kEUR
+  revenue        Float?
+  ebitda         Float?
+  capex          Float?
+  ebit           Float?
+  workingCapital Float?
+
+  @@unique([entity, year, month])
+}
+
+model ReconResolution {
+  id          Int      @id @default(autoincrement())
+  entity      String
+  year        Int
+  month       Int
+  metric      String   // "Revenue" | "EBITDA" | "CapEx" | "EBIT" | "Working Capital"
+  remarks     String
+  resolvedBy  String?
+  resolvedAt  DateTime @default(now())
+
+  @@unique([entity, year, month, metric])
+}
+
+model Settings {
+  id              Int   @id @default(autoincrement())
+  fxRateInrPerEur Float @default(90.0)
+}

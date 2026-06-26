@@ -1,0 +1,22 @@
+# Render.com infrastructure-as-code blueprint
+# When connected to a GitHub repo, Render picks this up automatically.
+services:
+  - type: web
+    name: veolia-fms
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    # Build command:
+    #   1) install deps (incl. dev deps — Prisma CLI and tsx are needed at build)
+    #   2) `npm run build` which: generates Prisma client → pushes schema →
+    #      seeds the DB → builds Next.js
+    buildCommand: "npm install --include=dev && npm run build"
+    startCommand: "npm run start"
+    envVars:
+      - key: DATABASE_URL
+        value: "file:./dev.db"
+      - key: NODE_VERSION
+        value: "18.20.8"
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
