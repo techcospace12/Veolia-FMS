@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MONTHS,
   ROLE_LABELS,
@@ -97,6 +97,12 @@ export default function DataEntryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newFunc, setNewFunc] = useState("COS");
+
+  // SAP upload (mocked) state
+  const [uploadState, setUploadState] = useState<"idle" | "processing" | "done">("idle");
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
+  const [uploadToast, setUploadToast] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load plants
   useEffect(() => {
@@ -294,6 +300,37 @@ export default function DataEntryPage() {
     load();
   };
 
+  // Mocked SAP upload — in production this would parse the uploaded XLSX, map GL
+  // codes to our P&L categories, and POST the values. For the demo it shows a
+  // 2-second processing spinner and the existing seeded actuals stay in place
+  // (so users see numbers "appear" in the editable fields).
+  const onUploadSap = async (file: File) => {
+    setUploadFileName(file.name);
+    setUploadState("processing");
+    setUploadToast(null);
+    // Simulate parsing latency
+    await new Promise((r) => setTimeout(r, 2000));
+    // Audit-log the (mock) extraction
+    if (data) {
+      await fetch("/api/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userRole: ROLE_LABELS[role!] ?? "Unknown",
+          userName,
+          plantName: data.plant.name,
+          action: "SAP_UPLOAD",
+          details: `Auto-populated ${MONTHS[month-1]} ${year} Actuals from ${file.name}`,
+        }),
+      });
+    }
+    const itemCount = data?.items.filter((i) => !i.isCalculated).length ?? 0;
+    setUploadState("done");
+    setUploadToast(`${itemCount} line items auto-populated from SAP data. Please review.`);
+    load(); // refresh seeded data so values show up in inputs
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
@@ -385,6 +422,57 @@ export default function DataEntryPage() {
           </div>
         )}
       </div>
+
+      {/* SAP upload — only visible to Finance Team entering Actuals */}
+      {data && role === "FINANCE_TEAM" && version === "ACTUAL" && writable && (
+        <div className="rounded-md border border-veolia-200 bg-veolia-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-veolia-800">
+                Auto-populate Actuals from SAP
+              </div>
+              <div className="text-xs text-veolia-700 mt-0.5">
+                Upload the monthly SAP trial-balance file. GL codes are mapped to the P&amp;L
+                categories and the Actual column is pre-filled for you to review.
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadSap(f);
+                }}
+              />
+              {uploadState === "processing" ? (
+                <div className="flex items-center gap-2 text-sm text-veolia-800">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                    <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                  Processing {uploadFileName ?? ""}…
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-primary text-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload SAP Data
+                </button>
+              )}
+            </div>
+          </div>
+          {uploadToast && uploadState === "done" && (
+            <div className="mt-3 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              ✓ {uploadToast}
+            </div>
+          )}
+        </div>
+      )}
 
       {data && (
         <div className="card overflow-hidden">

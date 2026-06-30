@@ -15,6 +15,21 @@ const ROLES: Role[] = [
   "SENIOR_MGMT_2",
 ];
 
+// Each role lands on the page that matches their primary day-to-day task.
+// Plant User enters budgets; Plant Head reviews; Finance Team + Sr Mgmt
+// see the consolidated dashboard first.
+function landingPageFor(role: Role): string {
+  switch (role) {
+    case "PLANT_USER": return "/data-entry";
+    case "PLANT_HEAD": return "/approvals";
+    case "FINANCE_TEAM":
+    case "SENIOR_MGMT_1":
+    case "SENIOR_MGMT_2":
+    default:
+      return "/dashboard";
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { setSession } = useSession();
@@ -42,7 +57,7 @@ export default function LoginPage() {
       plantId: needsPlant ? plantId : null,
       plantName: needsPlant ? selectedPlant?.name ?? null : null,
     });
-    router.push("/dashboard");
+    router.push(landingPageFor(role));
   };
 
   return (

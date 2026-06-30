@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { MONTHS, ROLE_LABELS } from "@/lib/types";
 import { useSession } from "@/lib/session";
@@ -139,6 +139,37 @@ export default function ReconciliationPage() {
     load();
   };
 
+  // Entry mode toggle + mocked consolidated-file upload
+  const [entryMode, setEntryMode] = useState<"upload" | "manual">("upload");
+  const [uploadState, setUploadState] = useState<"idle" | "processing" | "done">("idle");
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
+  const [uploadToast, setUploadToast] = useState<string | null>(null);
+  const consolFileInput = useRef<HTMLInputElement>(null);
+
+  const onUploadConsolidated = async (file: File) => {
+    setUploadFileName(file.name);
+    setUploadState("processing");
+    setUploadToast(null);
+    await new Promise((r) => setTimeout(r, 2000));
+    // The seed already contains the consolidated values for the demo. Just refresh
+    // so they're visible, and write an audit row to record the "upload".
+    await fetch("/api/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userRole: ROLE_LABELS[session.role!] ?? "Unknown",
+        userName: session.userName,
+        action: "CONSOL_UPLOAD",
+        details: `Auto-populated consolidated values for ${MONTHS[month-1]} 2026 from ${file.name}`,
+      }),
+    });
+    const entityCount = data?.reconciliation.length ?? 0;
+    setUploadState("done");
+    setUploadToast(`Consolidated values populated for ${entityCount} entities. Mismatches are flagged below.`);
+    load();
+    if (consolFileInput.current) consolFileInput.current.value = "";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
@@ -166,6 +197,74 @@ export default function ReconciliationPage() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Upload bar + mode toggle */}
+      <div className="rounded-md border border-veolia-200 bg-veolia-50 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-semibold text-veolia-800">
+                Consolidated entity data
+              </div>
+              <div className="inline-flex rounded-md border border-veolia-200 bg-white p-0.5 text-[10px]">
+                <button
+                  onClick={() => setEntryMode("upload")}
+                  className={clsx("px-2 py-0.5 rounded", entryMode === "upload" ? "bg-veolia-600 text-white" : "text-veolia-700")}
+                >
+                  Upload file
+                </button>
+                <button
+                  onClick={() => setEntryMode("manual")}
+                  className={clsx("px-2 py-0.5 rounded", entryMode === "manual" ? "bg-veolia-600 text-white" : "text-veolia-700")}
+                >
+                  Manual entry
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-veolia-700 mt-0.5">
+              {entryMode === "upload"
+                ? "Upload the Vector / consolidation export. Values are auto-populated and compared against the plant rollups."
+                : "Type the consolidated kEUR values for each entity directly."}
+            </div>
+          </div>
+          {entryMode === "upload" && (
+            <div className="shrink-0 flex items-center gap-2">
+              <input
+                ref={consolFileInput}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadConsolidated(f);
+                }}
+              />
+              {uploadState === "processing" ? (
+                <div className="flex items-center gap-2 text-sm text-veolia-800">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                    <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                  Processing {uploadFileName ?? ""}…
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-primary text-sm"
+                  onClick={() => consolFileInput.current?.click()}
+                >
+                  Upload Consolidated Data
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {uploadToast && uploadState === "done" && (
+          <div className="mt-3 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            ✓ {uploadToast}
+          </div>
+        )}
       </div>
 
       {data?.reconciliation.map((rec) => {
@@ -218,37 +317,64 @@ export default function ReconciliationPage() {
                 </table>
               </div>
 
-              {/* Consolidated input */}
-              <div className="p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Consolidated Upload (kEUR)
-                  </div>
-                  <button className="btn-secondary text-xs px-3 py-1" onClick={() => saveEntity(rec.entity)}>
-                    Save
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {([
-                    ["revenue", "Revenue"],
-                    ["ebitda", "EBITDA"],
-                    ["ebit", "EBIT"],
-                    ["capex", "CapEx"],
-                    ["workingCapital", "Working Capital"],
-                  ] as const).map(([k, label]) => (
-                    <div key={k} className="flex items-center justify-between gap-2">
-                      <label className="text-slate-600">{label}</label>
-                      <input
-                        className="input-sm w-28"
-                        type="number"
-                        step="0.01"
-                        value={v(k) as string | number}
-                        onChange={(e) => onChangeConsol(rec.entity, k, e.target.value)}
-                      />
+              {/* Consolidated input — only in manual mode */}
+              {entryMode === "manual" ? (
+                <div className="p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Consolidated Values (kEUR)
                     </div>
-                  ))}
+                    <button className="btn-secondary text-xs px-3 py-1" onClick={() => saveEntity(rec.entity)}>
+                      Save
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {([
+                      ["revenue", "Revenue"],
+                      ["ebitda", "EBITDA"],
+                      ["ebit", "EBIT"],
+                      ["capex", "CapEx"],
+                      ["workingCapital", "Working Capital"],
+                    ] as const).map(([k, label]) => (
+                      <div key={k} className="flex items-center justify-between gap-2">
+                        <label className="text-slate-600">{label}</label>
+                        <input
+                          className="input-sm w-28"
+                          type="number"
+                          step="0.01"
+                          value={v(k) as string | number}
+                          onChange={(e) => onChangeConsol(rec.entity, k, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4">
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Consolidated Values (kEUR) — from uploaded file
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {([
+                      ["revenue", "Revenue"],
+                      ["ebitda", "EBITDA"],
+                      ["ebit", "EBIT"],
+                      ["capex", "CapEx"],
+                      ["workingCapital", "Working Capital"],
+                    ] as const).map(([k, label]) => {
+                      const val = (existing as unknown as Record<string, number | null> | undefined)?.[k];
+                      return (
+                        <div key={k} className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
+                          <label className="text-slate-600">{label}</label>
+                          <span className="font-medium text-slate-800">
+                            {val != null ? formatNumber(val, 1) : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-slate-200">
