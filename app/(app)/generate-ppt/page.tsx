@@ -15,8 +15,10 @@ type ReconStatus = {
 
 export default function GeneratePPTPage() {
   const session = useSession();
+  const isPlantUser = session.role === "PLANT_USER";
   const [month, setMonth] = useState(1);
-  const [includeConsolidated, setIncludeConsolidated] = useState(true);
+  // Plant User only sees their own plant PPT; the consolidated MBR is a finance-only artefact.
+  const [includeConsolidated, setIncludeConsolidated] = useState(!isPlantUser);
   const [includePlantWise, setIncludePlantWise] = useState(true);
   const [healthSafety, setHealthSafety] = useState(
     "Zero LTI for the month. ZLD plant safety drill conducted Mar 12. Continued PPE compliance audit underway.",
@@ -31,6 +33,11 @@ export default function GeneratePPTPage() {
   const [reconStatus, setReconStatus] = useState<ReconStatus | null>(null);
   const [plants, setPlants] = useState<Plant[]>([]);
   const [generated, setGenerated] = useState(false);
+
+  // For Plant User the list of plants included in the PPT collapses to just their plant.
+  const plantsToInclude = isPlantUser
+    ? plants.filter((p) => p.id === session.plantId)
+    : plants;
 
   useEffect(() => {
     fetch(`/api/reconciliation?year=2026&month=${month}`)
@@ -140,16 +147,19 @@ export default function GeneratePPTPage() {
           <div className="card">
             <div className="card-header text-sm font-semibold text-slate-700">Output</div>
             <div className="card-body space-y-3 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="rounded"
-                  checked={includeConsolidated}
-                  onChange={(e) => setIncludeConsolidated(e.target.checked)}
-                />
-                Consolidated MBR PPT
-                <span className="ml-1 text-xs text-slate-400">(38 slides)</span>
-              </label>
+              {/* Consolidated MBR is a finance-team artefact — hidden for Plant Users */}
+              {!isPlantUser && (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={includeConsolidated}
+                    onChange={(e) => setIncludeConsolidated(e.target.checked)}
+                  />
+                  Consolidated MBR PPT
+                  <span className="ml-1 text-xs text-slate-400">(38 slides)</span>
+                </label>
+              )}
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -157,8 +167,10 @@ export default function GeneratePPTPage() {
                   checked={includePlantWise}
                   onChange={(e) => setIncludePlantWise(e.target.checked)}
                 />
-                Plant-wise PPTs
-                <span className="ml-1 text-xs text-slate-400">({plants.length} files)</span>
+                {isPlantUser ? `Plant PPT — ${session.plantName ?? "your plant"}` : "Plant-wise PPTs"}
+                {!isPlantUser && (
+                  <span className="ml-1 text-xs text-slate-400">({plantsToInclude.length} files)</span>
+                )}
               </label>
               <button
                 className="btn-primary w-full mt-2"
@@ -185,12 +197,12 @@ export default function GeneratePPTPage() {
                   Demo only — files are mocked.
                 </p>
                 <div className="mt-3 space-y-2">
-                  {includeConsolidated && (
+                  {includeConsolidated && !isPlantUser && (
                     <a className="block rounded border border-emerald-300 bg-white px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-100" href="#" onClick={(e) => e.preventDefault()}>
                       📄 Consolidated MBR - {MONTHS[month-1]} 2026.pptx
                     </a>
                   )}
-                  {includePlantWise && plants.map((p) => (
+                  {includePlantWise && plantsToInclude.map((p) => (
                     <a key={p.id} className="block rounded border border-emerald-300 bg-white px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-100" href="#" onClick={(e) => e.preventDefault()}>
                       📄 {p.name} - {MONTHS[month-1]} 2026.pptx
                     </a>

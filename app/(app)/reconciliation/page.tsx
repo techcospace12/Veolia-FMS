@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { MONTHS, ROLE_LABELS } from "@/lib/types";
 import { useSession } from "@/lib/session";
@@ -139,6 +139,18 @@ export default function ReconciliationPage() {
     load();
   };
 
+  // Entity filter — defaults to All. Populated from whatever entities the API returned.
+  const [entityFilter, setEntityFilter] = useState<string>("All");
+  const availableEntities = useMemo(
+    () => Array.from(new Set((data?.reconciliation ?? []).map((r) => r.entity))),
+    [data],
+  );
+  const filteredReconciliation = useMemo(() => {
+    const list = data?.reconciliation ?? [];
+    if (entityFilter === "All") return list;
+    return list.filter((r) => r.entity === entityFilter);
+  }, [data, entityFilter]);
+
   // Entry mode toggle + mocked consolidated-file upload
   const [entryMode, setEntryMode] = useState<"upload" | "manual">("upload");
   const [uploadState, setUploadState] = useState<"idle" | "processing" | "done">("idle");
@@ -184,6 +196,19 @@ export default function ReconciliationPage() {
             <label className="label">Month</label>
             <select className="select" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
               {[1,2,3].map((m) => <option key={m} value={m}>{MONTHS[m-1]} 2026</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Entity</label>
+            <select
+              className="select"
+              value={entityFilter}
+              onChange={(e) => setEntityFilter(e.target.value)}
+            >
+              <option value="All">All Entities</option>
+              {availableEntities.map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -267,9 +292,15 @@ export default function ReconciliationPage() {
         )}
       </div>
 
-      {data?.reconciliation.map((rec) => {
+      {filteredReconciliation.length === 0 && data && (
+        <div className="text-sm text-slate-500 italic py-6 text-center">
+          No entities match the current filter.
+        </div>
+      )}
+
+      {filteredReconciliation.map((rec) => {
         const editsRow = edits[rec.entity] ?? {};
-        const existing = data.consolidated.find((c) => c.entity === rec.entity);
+        const existing = data?.consolidated.find((c) => c.entity === rec.entity);
         const v = (k: string) =>
           editsRow[k] !== undefined
             ? editsRow[k]

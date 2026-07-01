@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { MONTHS, VERSION_LABELS, type Version } from "@/lib/types";
+import { useSession } from "@/lib/session";
 
 const FUNCTIONS: Array<{ key: string; label: string; short: string }> = [
   { key: "COS", label: "COS — Cost of Sales", short: "COS" },
@@ -70,17 +71,31 @@ const CATEGORY_ORDER = [
 ];
 
 export default function DashboardPage() {
+  const session = useSession();
+  const isPlantUser = session.role === "PLANT_USER";
   const [month, setMonth] = useState(1);
   const [version, setVersion] = useState<Version>("BUDGET");
   const [view, setView] = useState<"nature" | "function">("nature");
-  const [data, setData] = useState<{ plants: PlantBlock[] } | null>(null);
+  const [rawData, setRawData] = useState<{ plants: PlantBlock[] } | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`/api/dashboard?year=2026&month=${month}&compareVersion=${version}`)
       .then((r) => r.json())
-      .then(setData);
+      .then(setRawData);
   }, [month, version]);
+
+  // For Plant Users, only show their assigned plant's data.
+  const data = useMemo(() => {
+    if (!rawData) return null;
+    if (isPlantUser && session.plantId != null) {
+      return {
+        ...rawData,
+        plants: rawData.plants.filter((p) => p.plant.id === session.plantId),
+      };
+    }
+    return rawData;
+  }, [rawData, isPlantUser, session.plantId]);
 
   // Aggregates across plants — both MTD and YTD
   const totals = useMemo(() => {
@@ -110,7 +125,9 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Budget vs Actuals</h1>
           <p className="mt-1 text-sm text-slate-500">
-            All plants — consolidated and per-plant variance against the selected version.
+            {isPlantUser && session.plantName
+              ? `${session.plantName} — variance against the selected version.`
+              : "All plants — consolidated and per-plant variance against the selected version."}
           </p>
         </div>
         <div className="flex items-end gap-3">
@@ -204,7 +221,7 @@ export default function DashboardPage() {
                 <th colSpan={2} className="!text-center border-l border-slate-200">Revenue YTD</th>
                 <th colSpan={2} className="!text-center border-l border-slate-200">EBITDA {MONTHS[month-1]}</th>
                 <th colSpan={2} className="!text-center border-l border-slate-200">EBITDA YTD</th>
-                <th rowSpan={2} className="align-bottom !text-right border-l border-slate-200">% Ach. YTD vs {VERSION_LABELS[version]}</th>
+                <th rowSpan={2} className="align-bottom !text-right border-l border-slate-200">EBITDA % Ach. YTD</th>
                 <th rowSpan={2} className="align-bottom"></th>
               </tr>
               <tr>

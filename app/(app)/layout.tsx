@@ -4,16 +4,24 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/session";
-import { ROLE_LABELS } from "@/lib/types";
+import { ROLE_LABELS, type Role } from "@/lib/types";
 import clsx from "clsx";
 
-type NavItem = { href: string; label: string; icon: string };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: string;
+  hiddenForRoles?: Role[];
+};
 
+// Plant User sees only what they need: Dashboard (their plant only),
+// Data Entry, Approvals (their own submissions), Generate PPT (their plant only),
+// Audit Log. Reconciliation and Plants overview are Finance/leadership tools.
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
-  { href: "/plants", label: "Plants", icon: "▤" },
+  { href: "/plants", label: "Plants", icon: "▤", hiddenForRoles: ["PLANT_USER"] },
   { href: "/data-entry", label: "Data Entry", icon: "✎" },
-  { href: "/reconciliation", label: "Reconciliation", icon: "⇋" },
+  { href: "/reconciliation", label: "Reconciliation", icon: "⇋", hiddenForRoles: ["PLANT_USER"] },
   { href: "/approvals", label: "Approvals", icon: "✓" },
   { href: "/generate-ppt", label: "Generate PPT", icon: "▶" },
   { href: "/audit", label: "Audit Log", icon: "⊟" },
@@ -49,7 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="px-2 py-4 space-y-0.5">
-          {NAV.map((item) => {
+          {NAV.filter((item) => !item.hiddenForRoles?.includes(role)).map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
