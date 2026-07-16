@@ -24,4 +24,4 @@ services:
       - key: BASIC_AUTH_USER
         value: "veolia"
       - key: BASIC_AUTH_PASSWORD
-        value: "fms2026"
+        value: "fms2026@123"
